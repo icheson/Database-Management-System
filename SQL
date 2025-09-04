@@ -1,0 +1,118 @@
+-- =========================================================
+-- Clinic Booking System – Complete Relational Schema
+-- =========================================================
+-- Engine & charset
+SET NAMES utf8mb4;
+SET @OLD_FOREIGN_KEY_CHECKS = @@FOREIGN_KEY_CHECKS;
+SET FOREIGN_KEY_CHECKS = 0;
+
+-- 1.  Create the database
+CREATE DATABASE IF NOT EXISTS clinic_booking_system
+  CHARACTER SET utf8mb4
+  COLLATE utf8mb4_unicode_ci;
+USE clinic_booking_system;
+
+-- 2.  Reference / lookup tables
+CREATE TABLE IF NOT EXISTS specialities (
+    speciality_id   SMALLINT AUTO_INCREMENT PRIMARY KEY,
+    speciality_name VARCHAR(60) NOT NULL UNIQUE
+);
+
+CREATE TABLE IF NOT EXISTS medication_list (
+    medication_id   INT AUTO_INCREMENT PRIMARY KEY,
+    medication_name VARCHAR(100) NOT NULL UNIQUE,
+    unit_cost       DECIMAL(8,2) NOT NULL CHECK (unit_cost >= 0)
+);
+
+-- 3.  Core entity tables
+CREATE TABLE IF NOT EXISTS patients (
+    patient_id      INT AUTO_INCREMENT PRIMARY KEY,
+    first_name      VARCHAR(50) NOT NULL,
+    last_name       VARCHAR(50) NOT NULL,
+    date_of_birth   DATE        NOT NULL,
+    gender          ENUM('M','F','O') NOT NULL,
+    phone           VARCHAR(25) NOT NULL UNIQUE,
+    email           VARCHAR(100) UNIQUE,
+    street          VARCHAR(100),
+    city            VARCHAR(50),
+    state           VARCHAR(50),
+    postal_code     VARCHAR(15),
+    created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS doctors (
+    doctor_id       INT AUTO_INCREMENT PRIMARY KEY,
+    first_name      VARCHAR(50) NOT NULL,
+    last_name       VARCHAR(50) NOT NULL,
+    licence_no      VARCHAR(30) NOT NULL UNIQUE,
+    phone           VARCHAR(25) NOT NULL UNIQUE,
+    email           VARCHAR(100) NOT NULL UNIQUE,
+    joined_date     DATE        NOT NULL,
+    salary          DECIMAL(10,2) NOT NULL CHECK (salary > 0),
+    speciality_id   SMALLINT NOT NULL,
+    FOREIGN KEY (speciality_id) REFERENCES specialities(speciality_id)
+);
+
+CREATE TABLE IF NOT EXISTS rooms (
+    room_id         SMALLINT AUTO_INCREMENT PRIMARY KEY,
+    room_name       VARCHAR(30) NOT NULL UNIQUE,
+    capacity        TINYINT NOT NULL CHECK (capacity > 0)
+);
+
+-- 4.  Appointment / booking table
+CREATE TABLE IF NOT EXISTS appointments (
+    appointment_id  INT AUTO_INCREMENT PRIMARY KEY,
+    patient_id      INT NOT NULL,
+    doctor_id       INT NOT NULL,
+    room_id         SMALLINT,
+    appt_date_time  DATETIME NOT NULL,
+    duration_minutes TINYINT DEFAULT 30 CHECK (duration_minutes BETWEEN 15 AND 240),
+    status          ENUM('Scheduled','Completed','Cancelled','No-Show') DEFAULT 'Scheduled',
+    notes           TEXT,
+    created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE KEY unique_slot (doctor_id, appt_date_time),
+    FOREIGN KEY (patient_id) REFERENCES patients(patient_id)
+        ON UPDATE CASCADE ON DELETE RESTRICT,
+    FOREIGN KEY (doctor_id)  REFERENCES doctors(doctor_id)
+        ON UPDATE CASCADE ON DELETE RESTRICT,
+    FOREIGN KEY (room_id)    REFERENCES rooms(room_id)
+        ON UPDATE CASCADE ON DELETE SET NULL
+);
+
+-- 5.  Prescription (many-to-many bridge between appointments & medications)
+CREATE TABLE IF NOT EXISTS prescriptions (
+    prescription_id INT AUTO_INCREMENT PRIMARY KEY,
+    appointment_id  INT NOT NULL,
+    medication_id   INT NOT NULL,
+    dosage          VARCHAR(100) NOT NULL,
+    frequency       VARCHAR(50)  NOT NULL,
+    days_supply     SMALLINT NOT NULL CHECK (days_supply > 0),
+    quantity        DECIMAL(8,2) NOT NULL CHECK (quantity > 0),
+    FOREIGN KEY (appointment_id) REFERENCES appointments(appointment_id)
+        ON UPDATE CASCADE ON DELETE CASCADE,
+    FOREIGN KEY (medication_id)  REFERENCES medication_list(medication_id)
+        ON UPDATE CASCADE ON DELETE RESTRICT
+);
+
+-- 6.  Optional: staff users for admin login
+CREATE TABLE IF NOT EXISTS staff_users (
+    user_id         INT AUTO_INCREMENT PRIMARY KEY,
+    username        VARCHAR(30) NOT NULL UNIQUE,
+    password_hash   CHAR(60)    NOT NULL,
+    role            ENUM('Admin','Receptionist','Nurse','Doctor') NOT NULL,
+    doctor_id       INT UNIQUE,   -- one-to-one with doctors if doctor account
+    created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (doctor_id) REFERENCES doctors(doctor_id)
+        ON UPDATE CASCADE ON DELETE SET NULL
+);
+
+-- 7.  Re-enable FK checks
+SET FOREIGN_KEY_CHECKS = @OLD_FOREIGN_KEY_CHECKS;
+
+-- =========================================================
+-- End of file – clinic_booking_system.sql
+-- =========================================================
+
+
+
+
